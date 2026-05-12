@@ -583,10 +583,18 @@ class PythonEnvManager(ctk.CTk):
     def remove_version(self, version):
         if not messagebox.askyesno("确认卸载", f"确定要卸载 Python {version} 吗？"): return
         def uninstall_task():
-            installer_url = f"https://www.python.org/ftp/python/{version}/python-{version}-amd64.exe"
-            installer_path = os.path.join(tempfile.gettempdir(), f"python-{version}-amd64.exe")
+            installer_path = None
             try:
-                self.install_console.insert("end", f"> 准备卸载 Python {version} ...\n")
+                self.install_console.insert("end", f"> 正在查找 Python {version} 安装包...\n")
+                self.install_console.see("end")
+                installer_url, filename = self._find_installer_url(version)
+                if not installer_url:
+                    self.install_console.insert("end", f"[错误] 未找到 Python {version} 的安装包，无法执行卸载。\n")
+                    self.install_console.see("end")
+                    return
+                installer_path = os.path.join(tempfile.gettempdir(), filename)
+                self.install_console.insert("end", f"> 下载 {filename} 用于卸载...\n")
+                self.install_console.see("end")
                 urllib.request.urlretrieve(installer_url, installer_path)
                 self.install_console.insert("end", f"> 开始静默卸载...\n")
                 self.install_console.see("end")
@@ -601,7 +609,7 @@ class PythonEnvManager(ctk.CTk):
             except Exception as e:
                 self.install_console.insert("end", f"[卸载错误] {str(e)}\n")
             finally:
-                if os.path.exists(installer_path):
+                if installer_path and os.path.exists(installer_path):
                     try: os.remove(installer_path)
                     except: pass
         threading.Thread(target=uninstall_task, daemon=True).start()
