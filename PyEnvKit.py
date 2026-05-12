@@ -491,28 +491,37 @@ class PythonEnvManager(ctk.CTk):
             btn.pack(side="right", padx=10, pady=5)
 
     def _find_installer_url(self, version):
-        """探测FTP目录，找到实际可用的安装包文件名"""
-        base_url = f"https://www.python.org/ftp/python/{version}/"
-        try:
-            req = urllib.request.Request(base_url, headers={'User-Agent': 'Mozilla/5.0'})
-            resp = urllib.request.urlopen(req, timeout=10)
-            html = resp.read().decode('utf-8')
-            # 优先顺序: amd64.exe > .exe > -webinstall
-            candidates = [
-                f"python-{version}-amd64.exe",
-                f"python-{version}.exe",
-                f"python-{version}-win_amd64.exe",
-            ]
-            for name in candidates:
-                if name in html:
-                    return base_url + name, name
-            # 回退: 用正则找任意 .exe (排除 webinstall)
-            exes = re.findall(r'href="(python-[^"]+\.exe)"', html)
-            exes = [e for e in exes if 'webinstall' not in e.lower()]
-            if exes:
-                return base_url + exes[0], exes[0]
-        except:
-            pass
+        """探测FTP目录，找到实际可用的安装包文件名。
+        预发布版本 (如 3.15.0a1) 的安装包通常在基础版本目录 (3.15.0/) 下。
+        """
+        # 构建候选目录URL列表: 先尝试精确版本号, 再尝试基础版本号
+        base_ver = re.sub(r'(a|b|rc)\d+$', '', version)  # 3.15.0a1 → 3.15.0
+        urls_to_try = [f"https://www.python.org/ftp/python/{version}/"]
+        if base_ver != version:
+            urls_to_try.append(f"https://www.python.org/ftp/python/{base_ver}/")
+
+        candidates = [
+            f"python-{version}-amd64.exe",
+            f"python-{version}.exe",
+            f"python-{version}-win_amd64.exe",
+        ]
+
+        for base_url in urls_to_try:
+            try:
+                req = urllib.request.Request(base_url, headers={'User-Agent': 'Mozilla/5.0'})
+                resp = urllib.request.urlopen(req, timeout=10)
+                html = resp.read().decode('utf-8')
+                # 优先顺序: amd64.exe > .exe > -win_amd64.exe
+                for name in candidates:
+                    if name in html:
+                        return base_url + name, name
+                # 回退: 用正则找任意匹配此版本的 .exe (排除 webinstall)
+                exes = re.findall(r'href="(python-' + re.escape(version) + r'[^"]*\.exe)"', html)
+                exes = [e for e in exes if 'webinstall' not in e.lower()]
+                if exes:
+                    return base_url + exes[0], exes[0]
+            except:
+                continue
         return None, None
 
     def deploy_version(self, version):
