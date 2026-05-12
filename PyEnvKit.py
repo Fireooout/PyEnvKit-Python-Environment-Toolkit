@@ -452,6 +452,15 @@ class PythonEnvManager(ctk.CTk):
         self.installed_loading_label = ctk.CTkLabel(self.installed_scroll, text="等待扫描...")
         self.installed_loading_label.pack(pady=20)
 
+        # 安装选项区
+        opt_frame = ctk.CTkFrame(self.tab_install, fg_color="#2b2b2b", corner_radius=5)
+        opt_frame.pack(fill="x", padx=10, pady=(5, 0))
+        ctk.CTkLabel(opt_frame, text="安装选项:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=10, pady=8)
+        self.install_all_users = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(opt_frame, text="为所有用户安装 (需要管理员权限)", variable=self.install_all_users).pack(side="left", padx=10, pady=8)
+        self.install_silent = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(opt_frame, text="静默安装 (无界面)", variable=self.install_silent).pack(side="left", padx=10, pady=8)
+
         self.install_console = ctk.CTkTextbox(self.tab_install, height=120)
         self.install_console.pack(padx=10, pady=(0, 10), fill="x")
 
@@ -521,9 +530,26 @@ class PythonEnvManager(ctk.CTk):
                 self.install_console.insert("end", f"> 开始下载 {filename} ...\n")
                 self.install_console.see("end")
                 urllib.request.urlretrieve(installer_url, installer_path)
-                self.install_console.insert("end", f"> 下载完成，开始静默安装...\n")
+                self.install_console.insert("end", f"> 下载完成，开始安装...\n")
                 self.install_console.see("end")
-                cmd = [installer_path, "/quiet", "InstallAllUsers=0", "PrependPath=0", "Include_test=0"]
+                
+                all_users = self.install_all_users.get()
+                silent = self.install_silent.get()
+                
+                cmd = [installer_path]
+                if silent:
+                    cmd.append("/quiet")
+                else:
+                    cmd.append("/passive")  # 显示进度界面但无需用户操作
+                
+                cmd.append(f"InstallAllUsers={'1' if all_users else '0'}")
+                cmd.append("PrependPath=0")
+                cmd.append("Include_test=0")
+                
+                mode_desc = ("全局" if all_users else "当前用户") + " | " + ("静默" if silent else "可视")
+                self.install_console.insert("end", f"> 安装模式: {mode_desc}\n")
+                self.install_console.see("end")
+                
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding=SYS_ENCODING, errors='replace', startupinfo=startupinfo)
